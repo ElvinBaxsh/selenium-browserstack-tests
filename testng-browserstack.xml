@@ -1,0 +1,9 @@
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!-- One session at a time: the BrowserStack free plan allows a single parallel session -->
+<suite name="BrowserStack UI tests">
+    <test name="UI">
+        <packages>
+            <package name="io.github.elvinbaxsh.tests.ui"/>
+        </packages>
+    </test>
+</suite>

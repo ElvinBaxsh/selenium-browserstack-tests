@@ -1,0 +1,134 @@
+name: Selenium Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  local:
+    name: UI (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chrome, firefox, edge]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Run UI tests
+        run: ./mvnw -B test -Dsuite=testng-ui.xml -Dbrowser=${{ matrix.browser }}
+
+      - name: Upload report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-${{ matrix.browser }}
+          path: |
+            target/surefire-reports/
+            target/screenshots/
+          retention-days: 14
+
+  api:
+    name: API
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Run API tests
+        run: ./mvnw -B test -Dsuite=testng-api.xml
+
+      - name: Upload report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-api
+          path: target/surefire-reports/
+          retention-days: 14
+
+  # Real browsers and operating systems in the BrowserStack cloud.
+  # Runs on manual start and once a week to save BrowserStack minutes, and only when the secrets are set.
+  browserstack:
+    name: BrowserStack (${{ matrix.name }})
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - name: Windows 11 Chrome
+            browser: chrome
+            os: Windows
+            osVersion: '11'
+          - name: Windows 11 Edge
+            browser: edge
+            os: Windows
+            osVersion: '11'
+          - name: macOS Firefox
+            browser: firefox
+            os: OS X
+            osVersion: Sonoma
+          - name: macOS Safari
+            browser: safari
+            os: OS X
+            osVersion: Sonoma
+    env:
+      BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+      BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+    steps:
+      - name: Check BrowserStack secrets
+        id: secrets
+        run: |
+          if [ -z "$BROWSERSTACK_USERNAME" ] || [ -z "$BROWSERSTACK_ACCESS_KEY" ]; then
+            echo "BrowserStack secrets are not set, skipping." >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+
+      - uses: actions/setup-java@v4
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Run UI tests on BrowserStack
+        if: steps.secrets.outputs.ready == 'true'
+        run: >
+          ./mvnw -B test -Dsuite=testng-browserstack.xml -Dgrid=browserstack
+          -Dbrowser=${{ matrix.browser }} -Dos="${{ matrix.os }}" -DosVersion=${{ matrix.osVersion }}
+          -DbuildName="CI #${{ github.run_number }}"
+
+      - name: Upload report
+        if: ${{ !cancelled() && steps.secrets.outputs.ready == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-browserstack-${{ matrix.browser }}
+          path: |
+            target/surefire-reports/
+            target/screenshots/
+          retention-days: 14
