@@ -21,6 +21,10 @@ public final class DriverFactory {
 
     private static final String BROWSERSTACK_HUB = "https://hub-cloud.browserstack.com/wd/hub";
 
+    // Linux CI runners need these for Chromium-based browsers (Chrome, Edge) to start
+    private static final boolean ON_CI = System.getenv("CI") != null;
+    private static final String[] CI_ARGS = { "--no-sandbox", "--disable-dev-shm-usage" };
+
     private DriverFactory() {
     }
 
@@ -39,12 +43,14 @@ public final class DriverFactory {
             case "edge": {
                 EdgeOptions options = new EdgeOptions();
                 if (headless) options.addArguments("--headless=new");
+                if (ON_CI) options.addArguments(CI_ARGS);
                 options.addArguments("--window-size=1280,800");
                 return new EdgeDriver(options);
             }
             default: {
                 ChromeOptions options = new ChromeOptions();
                 if (headless) options.addArguments("--headless=new");
+                if (ON_CI) options.addArguments(CI_ARGS);
                 // Turns off Chrome's "change your password" pop-up, which blocks clicks after login
                 options.setExperimentalOption("prefs", Map.of(
                         "credentials_enable_service", false,
