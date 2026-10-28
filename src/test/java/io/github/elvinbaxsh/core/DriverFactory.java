@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.openqa.selenium.MutableCapabilities;
+import org.openqa.selenium.PageLoadStrategy;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
@@ -44,7 +45,10 @@ public final class DriverFactory {
                 EdgeOptions options = new EdgeOptions();
                 if (headless) options.addArguments("--headless=new");
                 if (ON_CI) options.addArguments(CI_ARGS);
-                options.addArguments("--window-size=1280,800");
+                options.addArguments("--window-size=1280,800", "--no-first-run");
+                // Edge on Linux can wait forever for the full "load" event; DOM ready is enough
+                // because every page action waits for its own element
+                options.setPageLoadStrategy(PageLoadStrategy.EAGER);
                 return new EdgeDriver(options);
             }
             default: {
