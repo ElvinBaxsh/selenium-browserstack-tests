@@ -1,0 +1,26 @@
+{
+  "name": "selenium-browserstack-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "UI and API test automation with Selenium WebDriver, TypeScript and Mocha",
+  "scripts": {
+    "test": "mocha --parallel --jobs 3 \"test/**/*.test.ts\"",
+    "test:ui": "mocha --parallel --jobs 3 \"test/ui/**/*.test.ts\"",
+    "test:api": "mocha \"test/api/**/*.test.ts\"",
+    "test:firefox": "cross-env BROWSER=firefox npm run test:ui",
+    "test:edge": "cross-env BROWSER=edge npm run test:ui",
+    "test:headed": "cross-env HEADLESS=false npm run test:ui",
+    "test:browserstack": "cross-env GRID=browserstack mocha \"test/ui/**/*.test.ts\"",
+    "typecheck": "tsc"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^26.6.6",
+    "@types/selenium-webdriver": "^4.35.7",
+    "cross-env": "^10.1.0",
+    "mocha": "^12.0.3",
+    "selenium-webdriver": "^4.51.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

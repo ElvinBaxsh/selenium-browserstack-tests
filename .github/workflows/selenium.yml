@@ -1,0 +1,130 @@
+name: Selenium Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  local:
+    name: UI (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chrome, firefox, edge]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run UI tests
+        run: npm run test:ui
+        env:
+          BROWSER: ${{ matrix.browser }}
+
+      - name: Upload screenshots
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ matrix.browser }}
+          path: reports/screenshots/
+          retention-days: 14
+
+  api:
+    name: API
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run API tests
+        run: npm run test:api
+
+  # Real browsers and operating systems in the BrowserStack cloud.
+  # Runs on manual start and once a week to save BrowserStack minutes, and only when the secrets are set.
+  browserstack:
+    name: BrowserStack (${{ matrix.name }})
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - name: Windows 11 Chrome
+            browser: chrome
+            os: Windows
+            osVersion: '11'
+          - name: Windows 11 Edge
+            browser: edge
+            os: Windows
+            osVersion: '11'
+          - name: macOS Firefox
+            browser: firefox
+            os: OS X
+            osVersion: Sonoma
+          - name: macOS Safari
+            browser: safari
+            os: OS X
+            osVersion: Sonoma
+    env:
+      BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+      BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+    steps:
+      - name: Check BrowserStack secrets
+        id: secrets
+        run: |
+          if [ -z "$BROWSERSTACK_USERNAME" ] || [ -z "$BROWSERSTACK_ACCESS_KEY" ]; then
+            echo "BrowserStack secrets are not set, skipping." >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+        if: steps.secrets.outputs.ready == 'true'
+
+      - name: Run UI tests on BrowserStack
+        if: steps.secrets.outputs.ready == 'true'
+        run: npm run test:browserstack
+        env:
+          BROWSER: ${{ matrix.browser }}
+          BS_OS: ${{ matrix.os }}
+          BS_OS_VERSION: ${{ matrix.osVersion }}
+          BS_BUILD_NAME: 'CI #${{ github.run_number }}'
+
+      - name: Upload screenshots
+        if: ${{ failure() && steps.secrets.outputs.ready == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-browserstack-${{ matrix.browser }}
+          path: reports/screenshots/
+          retention-days: 14
